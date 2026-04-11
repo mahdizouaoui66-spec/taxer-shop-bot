@@ -11,30 +11,53 @@ const client = new Client({
 
 const EMBED_COLOR = 0x7b2fff;
 
-client.once('ready', () => {
+client.once('clientReady', () => {
   console.log(`Bot is online as ${client.user.tag}`);
 });
 
 client.on('guildMemberAdd', (member) => {
-  const welcomeChannel = member.guild.channels.cache.find(
+  const guild = member.guild;
+
+  const welcomeChannel = guild.channels.cache.find(
     (ch) => ch.name === 'welcome'
   );
   if (!welcomeChannel) return;
 
-  const createdAt = `<t:${Math.floor(member.user.createdTimestamp / 1000)}:F>`;
+  const chatChannel = guild.channels.cache.find(
+    (ch) => ch.name === 'chat' || ch.name === 'Chat'
+  );
+  const ordreChannel = guild.channels.cache.find(
+    (ch) => ch.name === 'ordre' || ch.name === 'Ordre' || ch.name === 'support' || ch.name === 'Support'
+  );
+
+  const createdDate = new Date(member.user.createdTimestamp).toLocaleString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+
+  const lines = [
+    `🚀 Hey : **${member.user.username}**`,
+    `🚀 Welcome To **Taxer Shop**`,
+    `🚀 If You Wanna Chat`,
+    chatChannel ? `${chatChannel}` : '',
+    `🚀 If > You Want Support Open Ticket Here :`,
+    ordreChannel ? `${ordreChannel}` : '',
+    `🚀 Account Created At **${createdDate}**`,
+    `🚀`,
+    ``,
+    `**Enjoy <3**`,
+  ].filter((l) => l !== null);
 
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
-    .setTitle('Welcome To Taxer Shop / Enjoy <3')
-    .setDescription(`Hey ${member}, welcome to **Taxer Shop**!`)
+    .setTitle(member.user.username)
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }))
-    .addFields(
-      { name: 'Username', value: member.user.tag, inline: true },
-      { name: 'Account Created', value: createdAt, inline: true },
-      { name: 'Member Count', value: `${member.guild.memberCount}`, inline: true }
-    )
-    .setFooter({ text: 'Taxer Shop' })
+    .setDescription(lines.join('\n'))
+    .setFooter({ text: member.user.username })
     .setTimestamp();
+
+  const bannerURL = guild.bannerURL({ size: 1024, extension: 'png' });
+  if (bannerURL) embed.setImage(bannerURL);
 
   welcomeChannel.send({ embeds: [embed] });
 });
@@ -47,10 +70,13 @@ client.on('messageCreate', async (message) => {
 
     const embed = new EmbedBuilder()
       .setColor(EMBED_COLOR)
-      .setTitle('Thanks For Giving Us Feedback / Hope You Visit Us Again')
+      .setTitle(mentionedUser.username)
       .setThumbnail(mentionedUser.displayAvatarURL({ dynamic: true, size: 512 }))
-      .setDescription(`Thank you ${message.author} for your feedback!`)
-      .setFooter({ text: 'Taxer Shop — Feedbacks' })
+      .setDescription(
+        `💜 Thanks For Giving Us Feedback 💜\n` +
+        `💜 Hope You Visit Us Again 💜`
+      )
+      .setFooter({ text: mentionedUser.username })
       .setTimestamp();
 
     message.reply({ embeds: [embed] });
@@ -66,7 +92,7 @@ client.on('messageCreate', async (message) => {
 
     const existing = guild.channels.cache.find((ch) => ch.name === ticketName);
     if (existing) {
-      return message.reply('You already have an open ticket!');
+      return message.reply('Tu as déjà un ticket ouvert !');
     }
 
     const permissionOverwrites = [
@@ -95,26 +121,26 @@ client.on('messageCreate', async (message) => {
 
     const embed = new EmbedBuilder()
       .setColor(EMBED_COLOR)
-      .setTitle('🎫 Ticket Opened')
+      .setTitle('🎫 Ticket Ouvert')
       .setDescription(
-        `Welcome ${member}!\n\nA support member will be with you shortly.\nPlease describe your issue below.\n\nUse **!fermer** to close this ticket.`
+        `Bienvenue ${member} !\n\nUn membre du support arrive bientôt.\nDécris ton problème ci-dessous.\n\nUtilise **!fermer** pour fermer ce ticket.`
       )
       .setFooter({ text: 'Taxer Shop — Support' })
       .setTimestamp();
 
     ticketChannel.send({ embeds: [embed] });
-    message.reply(`Your ticket has been created: ${ticketChannel}`);
+    message.reply(`Ton ticket a été créé : ${ticketChannel}`);
   }
 
   if (message.content === '!fermer') {
     if (!message.channel.name.startsWith('ticket-')) {
-      return message.reply('This command can only be used inside a ticket channel.');
+      return message.reply('Cette commande ne peut être utilisée que dans un salon ticket.');
     }
 
     const embed = new EmbedBuilder()
       .setColor(EMBED_COLOR)
-      .setTitle('🔒 Ticket Closing')
-      .setDescription('This ticket will be closed in **5 seconds**...')
+      .setTitle('🔒 Fermeture du Ticket')
+      .setDescription('Ce ticket sera fermé dans **5 secondes**...')
       .setFooter({ text: 'Taxer Shop — Support' })
       .setTimestamp();
 
