@@ -69,7 +69,10 @@ client.on('messageCreate', async (message) => {
 
   if (message.channel.parentId === PROOF_CATEGORY_ID) {
     const banner = new AttachmentBuilder(BANNER_PATH, { name: 'banner.png' });
-    message.channel.send({ files: [banner] }).catch(console.error);
+    const bannerEmbed = new EmbedBuilder()
+      .setColor(EMBED_COLOR)
+      .setImage('attachment://banner.png');
+    message.channel.send({ embeds: [bannerEmbed], files: [banner] }).catch(console.error);
   }
 
   if (message.channel.id === FEEDBACK_CHANNEL_ID && message.mentions.users.size > 0) {
