@@ -16,6 +16,19 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 
+## Discord Bot (`@workspace/bot`)
+
+- **Library**: Discord.js v14
+- **Location**: `bot/index.js`
+- **Token**: Stored in `TOKEN` environment secret
+- **Features**:
+  - Welcome message in `#welcome` channel on member join (embed with avatar, username, account creation date)
+  - Auto-response in `#feedbacks` channel when a user is mentioned
+  - Ticket system: `!ticket` creates private channel, `!fermer` closes it after 5 seconds
+- **Embed color**: `#7b2fff`
+- **Required Discord intents**: Guilds, GuildMembers, GuildMessages, MessageContent
+- **Required Discord server setup**: `#welcome` channel, `#feedbacks` channel, `Support` role
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages
