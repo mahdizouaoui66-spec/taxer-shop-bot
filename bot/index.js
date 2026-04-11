@@ -1,4 +1,7 @@
-const { Client, GatewayIntentBits, EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, PermissionFlagsBits, ChannelType, AttachmentBuilder } = require('discord.js');
+const path = require('path');
+
+const BANNER_PATH = path.join(__dirname, 'assets', 'banner.png');
 
 const client = new Client({
   intents: [
@@ -48,18 +51,18 @@ client.on('guildMemberAdd', (member) => {
     `**Enjoy <3**`,
   ].filter((l) => l !== null);
 
+  const banner = new AttachmentBuilder(BANNER_PATH, { name: 'banner.png' });
+
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
     .setTitle(member.user.username)
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }))
     .setDescription(lines.join('\n'))
+    .setImage('attachment://banner.png')
     .setFooter({ text: member.user.username })
     .setTimestamp();
 
-  const bannerURL = guild.bannerURL({ size: 1024, extension: 'png' });
-  if (bannerURL) embed.setImage(bannerURL);
-
-  welcomeChannel.send({ embeds: [embed] });
+  welcomeChannel.send({ embeds: [embed], files: [banner] });
 });
 
 client.on('messageCreate', async (message) => {
