@@ -2,6 +2,9 @@ const { Client, GatewayIntentBits, EmbedBuilder, PermissionFlagsBits, ChannelTyp
 const path = require('path');
 
 const BANNER_PATH = path.join(__dirname, 'assets', 'banner.png');
+const EMBED_COLOR = 0x7b2fff;
+const FEEDBACK_CHANNEL_ID = '1385261245107671112';
+const PROOF_CATEGORY_ID = '1385261194616508470';
 
 const client = new Client({
   intents: [
@@ -12,18 +15,14 @@ const client = new Client({
   ],
 });
 
-const EMBED_COLOR = 0x7b2fff;
-
 client.once('clientReady', () => {
-  console.log(`Bot is online as ${client.user.tag}`);
+  console.log(`✅ Bot en ligne : ${client.user.tag}`);
 });
 
 client.on('guildMemberAdd', (member) => {
   const guild = member.guild;
 
-  const welcomeChannel = guild.channels.cache.find(
-    (ch) => ch.name === 'welcome'
-  );
+  const welcomeChannel = guild.channels.cache.find((ch) => ch.name === 'welcome');
   if (!welcomeChannel) return;
 
   const chatChannel = guild.channels.cache.find(
@@ -35,7 +34,7 @@ client.on('guildMemberAdd', (member) => {
 
   const createdDate = new Date(member.user.createdTimestamp).toLocaleString('fr-FR', {
     day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit'
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
   });
 
   const lines = [
@@ -68,20 +67,36 @@ client.on('guildMemberAdd', (member) => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  console.log(`[MSG] channel=${message.channel.id} author=${message.author.username} mentions=${message.mentions.users.size} content="${message.content}"`);
+  if (message.channel.parentId === PROOF_CATEGORY_ID) {
+    const banner = new AttachmentBuilder(BANNER_PATH, { name: 'banner.png' });
+    message.channel.send({ files: [banner] }).catch(console.error);
+  }
 
-  if (message.channel.id === '1385261245107671112' && message.mentions.users.size > 0) {
+  if (message.channel.id === FEEDBACK_CHANNEL_ID && message.mentions.users.size > 0) {
     const mentionedUser = message.mentions.users.first();
+    const avatarURL = mentionedUser.displayAvatarURL({ dynamic: true, size: 512 });
 
     const embed = new EmbedBuilder()
       .setColor(EMBED_COLOR)
-      .setTitle(mentionedUser.username)
-      .setThumbnail(mentionedUser.displayAvatarURL({ dynamic: true, size: 512 }))
+      .setAuthor({
+        name: `Taxer Shop — Feedbacks`,
+        iconURL: message.guild.iconURL({ dynamic: true }) ?? undefined,
+      })
+      .setTitle(`⭐ ${mentionedUser.username}`)
+      .setThumbnail(avatarURL)
       .setDescription(
-        `💜 Thanks For Giving Us Feedback 💜\n` +
-        `💜 Hope You Visit Us Again 💜`
+        `> 💜 **Thanks For Giving Us Feedback** 💜\n` +
+        `> 💜 **Hope You Visit Us Again** 💜`
       )
-      .setFooter({ text: mentionedUser.username })
+      .addFields({
+        name: '〔 Feedback par 〕',
+        value: `${message.author}`,
+        inline: true,
+      })
+      .setFooter({
+        text: `${mentionedUser.username} • Taxer Shop`,
+        iconURL: avatarURL,
+      })
       .setTimestamp();
 
     message.reply({ embeds: [embed] });
@@ -90,27 +105,18 @@ client.on('messageCreate', async (message) => {
   if (message.content === '!ticket') {
     const guild = message.guild;
     const member = message.member;
-
     const supportRole = guild.roles.cache.find((r) => r.name === 'Support');
-
     const ticketName = `ticket-${member.user.username.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
 
     const existing = guild.channels.cache.find((ch) => ch.name === ticketName);
     if (existing) {
-      return message.reply('Tu as déjà un ticket ouvert !');
+      return message.reply('⚠️ Tu as déjà un ticket ouvert !');
     }
 
     const permissionOverwrites = [
-      {
-        id: guild.id,
-        deny: [PermissionFlagsBits.ViewChannel],
-      },
-      {
-        id: member.id,
-        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
-      },
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
     ];
-
     if (supportRole) {
       permissionOverwrites.push({
         id: supportRole.id,
@@ -126,26 +132,37 @@ client.on('messageCreate', async (message) => {
 
     const embed = new EmbedBuilder()
       .setColor(EMBED_COLOR)
+      .setAuthor({
+        name: 'Taxer Shop — Support',
+        iconURL: guild.iconURL({ dynamic: true }) ?? undefined,
+      })
       .setTitle('🎫 Ticket Ouvert')
       .setDescription(
-        `Bienvenue ${member} !\n\nUn membre du support arrive bientôt.\nDécris ton problème ci-dessous.\n\nUtilise **!fermer** pour fermer ce ticket.`
+        `Bienvenue ${member} !\n\n` +
+        `> Un membre du **Support** sera avec toi très bientôt.\n` +
+        `> Décris ton problème en détail ci-dessous.\n\n` +
+        `Utilise **\`!fermer\`** pour fermer ce ticket.`
       )
-      .setFooter({ text: 'Taxer Shop — Support' })
+      .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 512 }))
+      .setFooter({ text: `Taxer Shop • ${ticketName}` })
       .setTimestamp();
 
     ticketChannel.send({ embeds: [embed] });
-    message.reply(`Ton ticket a été créé : ${ticketChannel}`);
+    message.reply(`✅ Ton ticket a été créé : ${ticketChannel}`);
   }
 
   if (message.content === '!fermer') {
     if (!message.channel.name.startsWith('ticket-')) {
-      return message.reply('Cette commande ne peut être utilisée que dans un salon ticket.');
+      return message.reply('❌ Cette commande ne peut être utilisée que dans un salon ticket.');
     }
 
     const embed = new EmbedBuilder()
-      .setColor(EMBED_COLOR)
+      .setColor(0xff4444)
       .setTitle('🔒 Fermeture du Ticket')
-      .setDescription('Ce ticket sera fermé dans **5 secondes**...')
+      .setDescription(
+        `> Ce ticket sera **définitivement fermé** dans **5 secondes**...\n` +
+        `> Merci d'avoir contacté le support de **Taxer Shop** !`
+      )
       .setFooter({ text: 'Taxer Shop — Support' })
       .setTimestamp();
 
