@@ -8,4 +8,8 @@ router.get("/healthz", (_req, res) => {
   res.json(data);
 });
 
+router.get("/alive", (_req, res) => {
+  res.end("Bot is alive!");
+});
+
 export default router;
