@@ -68,7 +68,7 @@ client.on('guildMemberAdd', (member) => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
-  if (message.channel.name === 'feedbacks' && message.mentions.users.size > 0) {
+  if (message.channel.id === '1385261245107671112' && message.mentions.users.size > 0) {
     const mentionedUser = message.mentions.users.first();
 
     const embed = new EmbedBuilder()
