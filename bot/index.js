@@ -68,6 +68,8 @@ client.on('guildMemberAdd', (member) => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
 
+  console.log(`[MSG] channel=${message.channel.id} author=${message.author.username} mentions=${message.mentions.users.size} content="${message.content}"`);
+
   if (message.channel.id === '1385261245107671112' && message.mentions.users.size > 0) {
     const mentionedUser = message.mentions.users.first();
 
