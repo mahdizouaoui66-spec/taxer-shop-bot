@@ -1,4 +1,9 @@
+import { spawn } from "child_process";
+import { fileURLToPath } from "url";
+import path from "path";
 import app from "./app";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { logger } from "./lib/logger";
 
 const rawPort = process.env["PORT"];
@@ -23,3 +28,27 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 });
+
+// Launch Discord bot as a child process so it runs alongside the API server.
+// This means UptimeRobot pinging /api/alive keeps both the API and the bot alive.
+function startBot() {
+  // dist/ -> api-server/ -> artifacts/ -> workspace root -> bot/
+  const botPath = path.resolve(__dirname, "../../../bot/index.js");
+  const bot = spawn("node", [botPath], {
+    stdio: "inherit",
+    env: process.env,
+  });
+
+  bot.on("error", (err) => {
+    logger.error({ err }, "Discord bot process error");
+  });
+
+  bot.on("exit", (code) => {
+    logger.warn({ code }, "Discord bot exited — restarting in 5s");
+    setTimeout(startBot, 5000);
+  });
+
+  logger.info("Discord bot started");
+}
+
+startBot();
