@@ -181,6 +181,6 @@ client.login(process.env.TOKEN);
 
 const http = require('http');
 const PORT = process.env.PORT || 3000;
-http.createServer((req, res) => res.end('Bot is alive!')).listen(PORT, () => {
+http.createServer((req, res) => res.end('Bot is alive!')).listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 Keep-alive server running on port ${PORT}`);
 });
