@@ -34,9 +34,11 @@ app.listen(port, (err) => {
 function startBot() {
   // dist/ -> api-server/ -> artifacts/ -> workspace root -> bot/
   const botPath = path.resolve(__dirname, "../../../bot/index.js");
+  // Remove PORT from env so bot's HTTP server uses its own port (3000) not the API's port
+  const { PORT: _ignored, ...botEnv } = process.env;
   const bot = spawn("node", [botPath], {
     stdio: "inherit",
-    env: process.env,
+    env: botEnv,
   });
 
   bot.on("error", (err) => {
