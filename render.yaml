@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: taxer-shop-bot
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd bot && npm install
+    startCommand: node bot/index.js
+    envVars:
+      - key: TOKEN
+        sync: false

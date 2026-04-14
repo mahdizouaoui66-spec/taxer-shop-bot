@@ -180,6 +180,7 @@ client.on('messageCreate', async (message) => {
 client.login(process.env.TOKEN);
 
 const http = require('http');
-http.createServer((req, res) => res.end('Bot is alive!')).listen(3000, () => {
-  console.log('🌐 Keep-alive server running on port 3000');
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => res.end('Bot is alive!')).listen(PORT, () => {
+  console.log(`🌐 Keep-alive server running on port ${PORT}`);
 });
