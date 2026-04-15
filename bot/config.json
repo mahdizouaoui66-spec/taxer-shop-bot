@@ -1,0 +1,23 @@
+{
+  "welcome": {
+    "enabled": true,
+    "channelName": "welcome",
+    "message": "Bienvenue sur le serveur {user} !"
+  },
+  "welcomeDM": {
+    "enabled": false,
+    "message": "Bienvenue sur **Taxer Shop** ! Profite bien du serveur."
+  },
+  "ticket": {
+    "enabled": true,
+    "command": "!ticket",
+    "closeCommand": "!fermer",
+    "supportRoleName": "Support",
+    "openMessage": "Un membre du **Support** sera avec toi très bientôt.\nDécris ton problème en détail ci-dessous."
+  },
+  "feedbacks": {
+    "enabled": true,
+    "channelId": "1385261245107671112",
+    "categoryId": "1385261194616508470"
+  }
+}
