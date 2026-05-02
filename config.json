@@ -1,0 +1,54 @@
+{
+  "server": {
+    "name": "Taxer Shop",
+    "guildId": "1385260375452160070",
+    "clientId": "1358476758134820934",
+    "prefix": "!"
+  },
+  "bot": {
+    "status": "online",
+    "activity": {
+      "type": "WATCHING",
+      "text": "🎮 Taxer Shop | /help"
+    },
+    "arabic": true,
+    "embeds": true,
+    "timestamp": true
+  },
+  "tickets": {
+    "categoryId": "1422240778750656545",
+    "logChannelId": "1385261287402897610",
+    "staffRoleId": "1385261122659024916",
+    "notifRoleId": "1494036239752495276",
+    "adminRoleIds": [
+      "1385261113121308764",
+      "1385261115524644894",
+      "1385261116845723729"
+    ],
+    "types": [
+      { "id": "support",  "label": "دعم فني",        "emoji": "🎫", "color": "#5b4fcf" },
+      { "id": "reward",   "label": "مكافأة",          "emoji": "🎁", "color": "#3b82f6" },
+      { "id": "apply",    "label": "التقديم للستاف",  "emoji": "📋", "color": "#7c6bff" },
+      { "id": "commande", "label": "طلب شحن",         "emoji": "👑", "color": "#a855f7" }
+    ],
+    "options": {
+      "transcript": true,
+      "oneTicketPerUser": true,
+      "rating": false,
+      "autoClose": false
+    }
+  },
+  "moderation": {
+    "logChannelId": "1385261287402897610",
+    "muteRoleId": "1385261122659024916",
+    "commands": {
+      "ban": true,
+      "kick": true,
+      "mute": true,
+      "clear": true,
+      "warn": true
+    },
+    "antiSpam": true,
+    "antiLinks": false
+  }
+}
