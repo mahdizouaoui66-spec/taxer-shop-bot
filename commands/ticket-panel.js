@@ -27,16 +27,16 @@ module.exports = {
       .setCustomId('ticket_select')
       .setPlaceholder('اختر نوع التذكرة...')
       .addOptions([
-        { label: 'Support',             description: 'دعم فني أو استفسار',     value: 'ticket_support',  emoji: '🎫' },
-        { label: 'Reward',              description: 'طلب مكافأة',              value: 'ticket_reward',   emoji: '🎁' },
-        { label: 'Apply to Staff Team', description: 'التقديم لفريق العمل',    value: 'ticket_apply',    emoji: '📋' },
-        { label: 'Ordre',               description: 'طلب شحن أو شراء',        value: 'ticket_commande', emoji: '👑' },
+        { label: 'Support',             description: 'دعم فني أو استفسار',  value: 'ticket_support',  emoji: { id: '1385263236454289408' } },
+        { label: 'Reward',              description: 'طلب مكافأة',           value: 'ticket_reward',   emoji: { id: '1385580818516283473' } },
+        { label: 'Apply to Staff Team', description: 'التقديم لفريق العمل', value: 'ticket_apply',    emoji: { id: '1500586644066140272' } },
+        { label: 'Ordre',               description: 'طلب شحن أو شراء',     value: 'ticket_commande', emoji: { id: '1492658425048600697' } },
       ]);
 
     await interaction.channel.send({
       embeds: [embed],
       components: [new ActionRowBuilder().addComponents(menu)]
     });
-    await interaction.reply({ content: '✅ تم إرسال اللوحة!', ephemeral: true });
+    await interaction.reply({ content: '✅ تم إرسال اللوحة!', flags: 64 });
   }
 };
