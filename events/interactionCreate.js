@@ -11,11 +11,11 @@ const path   = require('path');
 const TICKET_TYPES     = {};
 for (const t of config.tickets.types) TICKET_TYPES[`ticket_${t.id}`] = t;
 
-const STAFF_ROLE_ID    = config.tickets.staffRoleId;
-const NOTIF_ROLE_ID    = config.tickets.notifRoleId;
-const ADMIN_ROLE_IDS   = config.tickets.adminRoleIds || [];
-const LOG_CHANNEL_ID   = config.tickets.logChannelId;
-const CATEGORY_ID      = config.tickets.categoryId;
+const STAFF_ROLE_ID     = config.tickets.staffRoleId;
+const NOTIF_ROLE_ID     = config.tickets.notifRoleId;
+const ADMIN_ROLE_IDS    = config.tickets.adminRoleIds || [];
+const LOG_CHANNEL_ID    = config.tickets.logChannelId;
+const CATEGORY_ID       = config.tickets.categoryId;
 const RATING_CHANNEL_ID = '1499145488036003920';
 
 const claimedBy  = new Map();
@@ -46,6 +46,7 @@ function buildTranscript(messages, channelName) {
   </head><body><h1>Transcript — #${channelName}</h1>
   <table><tr><th>التاريخ</th><th>العضو</th><th>الرسالة</th></tr>${rows}</table></body></html>`;
 }
+
 function ticketButtons(claimed) {
   return new ActionRowBuilder().addComponents(
     claimed
@@ -55,6 +56,7 @@ function ticketButtons(claimed) {
       .setStyle(claimed ? ButtonStyle.Danger : ButtonStyle.Secondary),
   );
 }
+
 function ratingButtons(ticketNum) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`rate_1_${ticketNum}`).setLabel('⭐').setStyle(ButtonStyle.Secondary),
@@ -63,6 +65,32 @@ function ratingButtons(ticketNum) {
     new ButtonBuilder().setCustomId(`rate_4_${ticketNum}`).setLabel('⭐⭐⭐⭐').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rate_5_${ticketNum}`).setLabel('⭐⭐⭐⭐⭐').setStyle(ButtonStyle.Success),
   );
+}
+
+// Bloquer l'écriture pour tous les staff sauf le claimer
+async function lockForStaff(channel) {
+  // Bloquer le rôle staff
+  await channel.permissionOverwrites.edit(STAFF_ROLE_ID, {
+    SendMessages: false,
+  }).catch(() => {});
+  // Bloquer tous les rôles admin
+  for (const id of ADMIN_ROLE_IDS) {
+    await channel.permissionOverwrites.edit(id, {
+      SendMessages: false,
+    }).catch(() => {});
+  }
+}
+
+// Débloquer l'écriture pour tous les staff
+async function unlockForStaff(channel) {
+  await channel.permissionOverwrites.edit(STAFF_ROLE_ID, {
+    SendMessages: true,
+  }).catch(() => {});
+  for (const id of ADMIN_ROLE_IDS) {
+    await channel.permissionOverwrites.edit(id, {
+      SendMessages: true,
+    }).catch(() => {});
+  }
 }
 
 async function openTicket(interaction, cat) {
@@ -86,11 +114,22 @@ async function openTicket(interaction, cat) {
     parent: CATEGORY_ID,
     topic: `owner:${interaction.user.id} | type:${cat.id} | num:${ticketNum}`,
     permissionOverwrites: [
-      { id: interaction.guild.id, deny:  [PermissionFlagsBits.ViewChannel] },
-      { id: interaction.user.id,  allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles] },
-      { id: STAFF_ROLE_ID,        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages] },
+      { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      {
+        id: interaction.user.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles]
+      },
+      {
+        // Staff peut voir mais PAS écrire jusqu'au claim
+        id: STAFF_ROLE_ID,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+        deny: [PermissionFlagsBits.SendMessages]
+      },
       ...ADMIN_ROLE_IDS.map(id => ({
-        id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages]
+        id,
+        // Admins peuvent voir mais PAS écrire jusqu'au claim
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+        deny: [PermissionFlagsBits.SendMessages]
       }))
     ],
   });
@@ -172,29 +211,55 @@ module.exports = {
         return;
       }
 
-      // ── CLAIM ───────────────────────────────────────────────
+      // ── CLAIM → donner accès écriture au claimer seulement ──
       if (interaction.isButton() && interaction.customId === 'ticket_claim') {
         const member = interaction.guild.members.cache.get(interaction.user.id);
         if (!isStaff(member)) return interaction.reply({ content: '❌ للستاف فقط!', flags: 64 });
+
+        // Bloquer tout le staff d'abord
+        await lockForStaff(interaction.channel);
+
+        // Donner accès écriture uniquement au claimer
+        await interaction.channel.permissionOverwrites.edit(interaction.user.id, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
+          ManageMessages: true,
+        });
+
         claimedBy.set(interaction.channel.id, { userId: interaction.user.id, tag: interaction.user.tag });
         db.addPoints(interaction.user.id, 1, 'tickets');
+
         await interaction.update({ components: [ticketButtons(true)] });
         await interaction.channel.send({
           embeds: [new EmbedBuilder().setColor('#7c6bff')
-            .setDescription(`✋ **${interaction.user}** استلم هذه التذكرة وسيساعدك الآن!\n🏆 +1 نقطة`)]
+            .setDescription(`✋ **${interaction.user}** استلم هذه التذكرة وسيساعدك الآن!\n🏆 +1 نقطة\n\n⚠️ فقط هو يمكنه الكتابة الآن`)]
         });
         return;
       }
 
-      // ── UNCLAIM ─────────────────────────────────────────────
+      // ── UNCLAIM → rendre accès écriture à tout le staff ─────
       if (interaction.isButton() && interaction.customId === 'ticket_unclaim') {
         const member  = interaction.guild.members.cache.get(interaction.user.id);
         const claimer = claimedBy.get(interaction.channel.id);
+
         if (claimer && claimer.userId !== interaction.user.id && !isAdmin(member)) {
           return interaction.reply({ content: `❌ هذه التذكرة مستلمة من **${claimer.tag}** فقط هو أو الإدارة يمكنهم إلغاء الاستلام.`, flags: 64 });
         }
+
+        // Retirer accès écriture au claimer
+        if (claimer) {
+          await interaction.channel.permissionOverwrites.edit(claimer.userId, {
+            SendMessages: false,
+          }).catch(() => {});
+        }
+
+        // Remettre accès à tout le staff
+        await unlockForStaff(interaction.channel);
+
         claimedBy.delete(interaction.channel.id);
         db.addPoints(interaction.user.id, -1, null);
+
         await interaction.update({ components: [ticketButtons(false)] });
         await interaction.channel.send({
           embeds: [new EmbedBuilder().setColor('#ED4245')
@@ -207,12 +272,14 @@ module.exports = {
       if (interaction.isButton() && interaction.customId === 'ticket_close') {
         const member  = interaction.guild.members.cache.get(interaction.user.id);
         const claimer = claimedBy.get(interaction.channel.id);
+
         if (claimer && claimer.userId !== interaction.user.id && !isAdmin(member)) {
           return interaction.reply({ content: `❌ هذه التذكرة مستلمة من **${claimer.tag}** فقط هو أو الإدارة يمكنهم إغلاقها.`, flags: 64 });
         }
         if (!claimer && !isStaff(member)) {
           return interaction.reply({ content: '❌ فقط الستاف يمكنهم الإغلاق!', flags: 64 });
         }
+
         return interaction.reply({
           content: '⚠️ هل أنت متأكد من إغلاق التذكرة؟',
           components: [new ActionRowBuilder().addComponents(
