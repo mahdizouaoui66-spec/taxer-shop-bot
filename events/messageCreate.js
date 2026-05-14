@@ -1,18 +1,14 @@
 const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, PermissionFlagsBits } = require('discord.js');
 const config      = require('../config.json');
 const db          = require('../utils/db.js');
-const profileCard = require('../utils/profileCard.js');
 
 const PROFILE_CHANNEL_ID = '1416486448361902261';
-const TOP_CHANNEL_ID     = '1495122586005278842';
+const OFFERS_CATEGORY_ID = '1385261194616508470';
 const ADMIN_ROLE_IDS     = config.tickets.adminRoleIds || [];
 const STAFF_ROLE_ID      = config.tickets.staffRoleId;
 
-// Top journalier activé ou non
-const TOP_ENABLED = false; // ← mets true quand tu veux activer
-
-// Compteur de messages par jour
-const msgCount = new Map();
+// Banner TS image URL — remplace par ton vrai lien si tu en as un
+const BANNER_URL = 'https://media.discordapp.net/attachments/1385261281015238698/1495769057763397712/Taxer_shop_logo.png?ex=69e772fd&is=69e6217d&hm=5ce12815b1b94c5739b6f440379312234a7c8bf859d417649bbc4ee3c3f37558&=&format=webp&quality=lossless&width=958&height=958';
 
 function isStaff(member) {
   return member.permissions.has(PermissionFlagsBits.Administrator)
@@ -20,54 +16,37 @@ function isStaff(member) {
       || member.roles.cache.has(STAFF_ROLE_ID);
 }
 
-// Envoyer le top journalier à minuit
-function scheduleDailyTop(client) {
-  if (!TOP_ENABLED) return;
-  const now  = new Date();
-  const next = new Date();
-  next.setHours(24, 0, 0, 0);
-  const msUntilMidnight = next - now;
+// Carte profil en embed Discord (sans canvas)
+async function sendProfileEmbed(message, target) {
+  const data  = db.getUser(target.user.id);
+  const rank  = db.getRank(target.user.id);
 
-  setTimeout(async () => {
-    try {
-      const sorted = [...msgCount.entries()]
-        .sort(([,a],[,b]) => b - a)
-        .slice(0, 10);
+  const xpBar    = Math.round((data.xp / data.xpMax) * 20);
+  const xpFilled = '█'.repeat(xpBar);
+  const xpEmpty  = '░'.repeat(20 - xpBar);
 
-      if (!sorted.length) { msgCount.clear(); scheduleDailyTop(client); return; }
+  const embed = new EmbedBuilder()
+    .setColor('#5b4fcf')
+    .setAuthor({ name: `Taxer Shop`, iconURL: message.guild.iconURL() })
+    .setThumbnail(target.user.displayAvatarURL({ extension: 'png', size: 256 }))
+    .setTitle(`👤 ${target.user.username}`)
+    .addFields(
+      { name: '🏆 الرتبة',        value: `#${rank}`,                                         inline: true },
+      { name: '⭐ النقاط',        value: `${data.points}`,                                   inline: true },
+      { name: '💬 رسائل اليوم',   value: `${data.msgsToday}`,                               inline: true },
+      { name: `📊 XP — ${data.xp}/${data.xpMax}`, value: `\`${xpFilled}${xpEmpty}\``,      inline: false },
+      { name: '🎫 تكت',           value: `${data.stats.tickets}`,  inline: true },
+      { name: '🔨 بون',           value: `${data.stats.bans}`,     inline: true },
+      { name: '⚠️ رسائل',         value: `${data.stats.warns}`,    inline: true },
+      { name: '👢 إدارة',         value: `${data.stats.kicks}`,    inline: true },
+      { name: '🔇 مسؤولية',       value: `${data.stats.mutes}`,    inline: true },
+      { name: '➕ إضافية',        value: `${data.stats.autres}`,   inline: true },
+    )
+    .setFooter({ text: `Taxer Shop • ID: ${target.user.id}` })
+    .setTimestamp();
 
-      const date   = new Date().toISOString().split('T')[0];
-      const lines  = sorted.map(([id, count], i) => {
-        const medals = ['🥇','🥈','🥉'];
-        const medal  = medals[i] ?? `**#${i+1}**`;
-        return `${medal} <@${id}> — **${count}** رسالة`;
-      }).join('\n');
-
-      const pointLines = sorted.map(([id, count], i) => {
-        const pts = 10 - i;
-        db.addPoints(id, pts, 'autres');
-        return `• <@${id}> التوب ${i+1} له **${pts}** نقاط`;
-      }).join('\n');
-
-      const guild = client.guilds.cache.first();
-      const ch    = guild?.channels.cache.get(TOP_CHANNEL_ID);
-      if (ch) {
-        await ch.send({ embeds: [
-          new EmbedBuilder()
-            .setTitle(`. Hollywood 50K 🏆 توب الشات اليومي 🏆`)
-            .setDescription(`**${date}**`)
-            .setColor('#5b4fcf')
-            .addFields(
-              { name: 'الترتيب', value: lines },
-              { name: '🏆 نظام الترقيات عبر التوب', value: `هذه النقاط ستوزع يومياً عبر التوب اليومي\n\n${pointLines}` }
-            )
-            .setTimestamp()
-        ]});
-      }
-    } catch(e) { console.error('Daily top error:', e); }
-    msgCount.clear();
-    scheduleDailyTop(client);
-  }, msUntilMidnight);
+  await message.channel.send({ embeds: [embed] });
+  message.delete().catch(() => {});
 }
 
 module.exports = {
@@ -75,18 +54,28 @@ module.exports = {
   async execute(message, client) {
     if (message.author.bot) return;
 
-    // Compter les messages pour le top journalier
-    if (TOP_ENABLED && !message.content.startsWith('+')) {
-      const count = msgCount.get(message.author.id) || 0;
-      msgCount.set(message.author.id, count + 1);
+    // ── Embed automatique dans la catégorie offers ────────────
+    if (message.channel.parentId === OFFERS_CATEGORY_ID) {
+      try {
+        const offerEmbed = new EmbedBuilder()
+          .setColor('#5b4fcf')
+          .setImage(BANNER_URL)
+          .setDescription(
+            `**${message.content}**\n\n` +
+            `If You Want Open Ticket And Tag Me <#1385261245107671112>\n\n` +
+            `For : @here`
+          )
+          .setFooter({ text: 'Taxer Shop', iconURL: message.guild.iconURL() })
+          .setTimestamp();
+
+        await message.channel.send({ embeds: [offerEmbed] });
+        // Supprimer le message original
+        await message.delete().catch(() => {});
+      } catch(e) { console.error('Offer embed error:', e); }
+      return;
     }
 
-    // Lancer le scheduler au premier message
-    if (!module.exports._scheduled) {
-      module.exports._scheduled = true;
-      scheduleDailyTop(client);
-    }
-
+    // ── Commandes prefix (+) ──────────────────────────────────
     if (!message.content.startsWith('+')) return;
 
     const args    = message.content.slice(1).trim().split(/ +/);
@@ -105,33 +94,13 @@ module.exports = {
           .then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
       }
       const target = message.mentions.members.first() || member;
-      const data   = db.getUser(target.user.id);
-      try {
-        await message.channel.sendTyping();
-        const imageBuffer = await profileCard.generate({
-          username:  target.user.username,
-          avatarURL: target.user.displayAvatarURL({ extension: 'png', size: 256 }),
-          rank:      db.getRank(target.user.id),
-          points:    data.points,
-          msgsToday: data.msgsToday,
-          xp:        data.xp,
-          xpMax:     data.xpMax,
-          stats:     data.stats,
-        });
-        await message.channel.send({ files: [new AttachmentBuilder(imageBuffer, { name: 'profile.png' })] });
-        message.delete().catch(() => {});
-      } catch (err) {
-        console.error('Profile card error:', err);
-        message.reply('❌ خطأ في توليد البطاقة. تأكد من: npm install @napi-rs/canvas');
-      }
+      await sendProfileEmbed(message, target);
       return;
     }
 
-    // ── +panel (affiche le panel de gestion dans le ticket) ───
+    // ── +panel ────────────────────────────────────────────────
     if (command === 'panel') {
       if (!isStaff(member)) return;
-
-      // Récupérer les infos du ticket depuis interactionCreate
       const icEvent  = require('./interactionCreate');
       const info     = icEvent.ticketInfo?.get(message.channel.id);
       const claimer  = icEvent.claimedBy?.get(message.channel.id);
@@ -165,10 +134,7 @@ module.exports = {
           { label: 'Close Ticket',  description: 'أغلق وحذف التكت',    value: 'manage_close',  emoji: '🔒' },
         ]);
 
-      await message.channel.send({
-        embeds: [embed],
-        components: [new ActionRowBuilder().addComponents(menu)]
-      });
+      await message.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       message.delete().catch(() => {});
       return;
     }
