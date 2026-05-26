@@ -1,7 +1,6 @@
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 require('dotenv').config();
-
 const config = require('./config.json');
 
 const client = new Client({
@@ -16,7 +15,6 @@ const client = new Client({
 // ── Charger les commandes ──
 client.commands = new Collection();
 const commandFiles = fs.readdirSync('./commands').filter(f => f.endsWith('.js'));
-
 for (const file of commandFiles) {
   const command = require(`./commands/${file}`);
   if (command.data && command.execute) {
@@ -37,5 +35,11 @@ for (const file of eventFiles) {
   console.log(`📡 Event chargé : ${event.name}`);
 }
 
+// ── Serveur HTTP pour Render ──
+const http = require('http');
+http.createServer((req, res) => res.end('Bot en ligne')).listen(process.env.PORT || 3000);
+console.log(`🌐 Serveur HTTP démarré`);
+
 // ── Connexion ──
 client.login(process.env.TOKEN);
+
