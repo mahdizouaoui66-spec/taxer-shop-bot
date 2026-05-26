@@ -1,4 +1,5 @@
 const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, PermissionFlagsBits } = require('discord.js');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const config      = require('../config.json');
 const db          = require('../utils/db.js');
 
@@ -7,7 +8,6 @@ const OFFERS_CATEGORY_ID = '1385261194616508470';
 const ADMIN_ROLE_IDS     = config.tickets.adminRoleIds || [];
 const STAFF_ROLE_ID      = config.tickets.staffRoleId;
 
-// Banner TS image URL — remplace par ton vrai lien si tu en as un
 const BANNER_URL = 'https://media.discordapp.net/attachments/1385261281015238698/1495769057763397712/Taxer_shop_logo.png?ex=69e772fd&is=69e6217d&hm=5ce12815b1b94c5739b6f440379312234a7c8bf859d417649bbc4ee3c3f37558&=&format=webp&quality=lossless&width=958&height=958';
 
 function isStaff(member) {
@@ -16,36 +16,183 @@ function isStaff(member) {
       || member.roles.cache.has(STAFF_ROLE_ID);
 }
 
-// Carte profil en embed Discord (sans canvas)
-async function sendProfileEmbed(message, target) {
-  const data  = db.getUser(target.user.id);
-  const rank  = db.getRank(target.user.id);
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
 
-  const xpBar    = Math.round((data.xp / data.xpMax) * 20);
-  const xpFilled = '█'.repeat(xpBar);
-  const xpEmpty  = '░'.repeat(20 - xpBar);
+async function sendProfileCard(message, target) {
+  const userData = db.getUser(target.user.id);
+  const rank     = db.getRank(target.user.id);
 
-  const embed = new EmbedBuilder()
-    .setColor('#5b4fcf')
-    .setAuthor({ name: `Taxer Shop`, iconURL: message.guild.iconURL() })
-    .setThumbnail(target.user.displayAvatarURL({ extension: 'png', size: 256 }))
-    .setTitle(`👤 ${target.user.username}`)
-    .addFields(
-      { name: '🏆 الرتبة',        value: `#${rank}`,                                         inline: true },
-      { name: '⭐ النقاط',        value: `${data.points}`,                                   inline: true },
-      { name: '💬 رسائل اليوم',   value: `${data.msgsToday}`,                               inline: true },
-      { name: `📊 XP — ${data.xp}/${data.xpMax}`, value: `\`${xpFilled}${xpEmpty}\``,      inline: false },
-      { name: '🎫 تكت',           value: `${data.stats.tickets}`,  inline: true },
-      { name: '🔨 بون',           value: `${data.stats.bans}`,     inline: true },
-      { name: '⚠️ رسائل',         value: `${data.stats.warns}`,    inline: true },
-      { name: '👢 إدارة',         value: `${data.stats.kicks}`,    inline: true },
-      { name: '🔇 مسؤولية',       value: `${data.stats.mutes}`,    inline: true },
-      { name: '➕ إضافية',        value: `${data.stats.autres}`,   inline: true },
-    )
-    .setFooter({ text: `Taxer Shop • ID: ${target.user.id}` })
-    .setTimestamp();
+  const W = 700, H = 280;
+  const canvas = createCanvas(W, H);
+  const ctx    = canvas.getContext('2d');
 
-  await message.channel.send({ embeds: [embed] });
+  // Fond noir
+  ctx.fillStyle = '#0d0d0d';
+  ctx.fillRect(0, 0, W, H);
+
+  // Bordure rouge
+  ctx.strokeStyle = '#cc0000';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(2, 2, W - 4, H - 4);
+
+  // Ligne rouge en haut
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, 'transparent');
+  grad.addColorStop(0.3, '#cc0000');
+  grad.addColorStop(0.7, '#cc0000');
+  grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, 3);
+
+  // Avatar
+  const avatarSize = 110;
+  const avatarX    = 40;
+  const avatarY    = H / 2 - avatarSize / 2;
+
+  try {
+    const avatarURL = target.user.displayAvatarURL({ extension: 'png', size: 256 });
+    const avatar    = await loadImage(avatarURL);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#cc0000';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#0d0d0d';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
+    ctx.restore();
+  } catch {}
+
+  // Rank badge
+  ctx.fillStyle = '#1a0000';
+  ctx.strokeStyle = '#cc0000';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, avatarX, avatarY + avatarSize + 8, avatarSize, 24, 5);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#cc0000';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`# ${rank}`, avatarX + avatarSize / 2, avatarY + avatarSize + 24);
+
+  // Nom
+  const textX = avatarX + avatarSize + 30;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 26px sans-serif';
+  const displayName = target.displayName ?? target.user.username;
+  ctx.fillText(displayName.length > 18 ? displayName.slice(0, 18) + '…' : displayName, textX, 55);
+
+  ctx.fillStyle = '#888888';
+  ctx.font = '14px sans-serif';
+  ctx.fillText(`@${target.user.username}`, textX, 78);
+
+  // XP Bar
+  const barX = textX, barY = 95, barW = W - textX - 40, barH = 14;
+
+  ctx.fillStyle = '#1a1a1a';
+  roundRect(ctx, barX, barY, barW, barH, 7);
+  ctx.fill();
+
+  const xpRatio = Math.min(userData.xp / userData.xpMax, 1);
+  if (xpRatio > 0) {
+    const xpGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    xpGrad.addColorStop(0, '#880000');
+    xpGrad.addColorStop(1, '#ff2222');
+    ctx.fillStyle = xpGrad;
+    roundRect(ctx, barX, barY, barW * xpRatio, barH, 7);
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = '#cc0000';
+  ctx.lineWidth = 1;
+  roundRect(ctx, barX, barY, barW, barH, 7);
+  ctx.stroke();
+
+  ctx.fillStyle = '#aaaaaa';
+  ctx.font = '12px sans-serif';
+  ctx.fillText(`${userData.xp} / ${userData.xpMax} XP`, barX, barY - 5);
+
+  // Stats
+  const stats = [
+    { label: 'تكت',     key: 'tickets' },
+    { label: 'بان',     key: 'bans'    },
+    { label: 'ميوت',    key: 'mutes'   },
+    { label: 'كيك',     key: 'kicks'   },
+    { label: 'مسؤولية', key: 'autres'  },
+    { label: 'تحذير',   key: 'warns'   },
+  ];
+
+  const statBoxW = 72, statBoxH = 52;
+  const statY    = 125;
+  const gap      = 10;
+
+  stats.forEach((s, i) => {
+    const bx = textX + i * (statBoxW + gap);
+    const by = statY;
+
+    ctx.fillStyle = '#111111';
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 1;
+    roundRect(ctx, bx, by, statBoxW, statBoxH, 6);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(userData.stats[s.key] ?? 0, bx + statBoxW / 2, by + 30);
+
+    ctx.fillStyle = '#666666';
+    ctx.font = '11px sans-serif';
+    ctx.fillText(s.label, bx + statBoxW / 2, by + 46);
+  });
+
+  // Points
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#cc0000';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(`نقاط: ${userData.points}`, textX, 205);
+
+  ctx.fillStyle = '#555555';
+  ctx.font = '13px sans-serif';
+  ctx.fillText(`رسائل اليوم: ${userData.msgsToday}`, textX + 130, 205);
+
+  // Watermark
+  ctx.fillStyle = '#cc0000';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('Taxer Shop', W - 20, 25);
+
+  ctx.fillStyle = '#333333';
+  ctx.font = '11px sans-serif';
+  ctx.fillText(`ID: ${target.user.id}`, W - 20, H - 12);
+
+  const buffer     = canvas.toBuffer('image/png');
+  const attachment = new AttachmentBuilder(buffer, { name: 'profile.png' });
+  await message.channel.send({ files: [attachment] });
   message.delete().catch(() => {});
 }
 
@@ -54,7 +201,7 @@ module.exports = {
   async execute(message, client) {
     if (message.author.bot) return;
 
-    // ── Embed automatique dans la catégorie offers ────────────
+    // Embed automatique dans la catégorie offers
     if (message.channel.parentId === OFFERS_CATEGORY_ID) {
       try {
         const offerEmbed = new EmbedBuilder()
@@ -69,13 +216,11 @@ module.exports = {
           .setTimestamp();
 
         await message.channel.send({ embeds: [offerEmbed] });
-        // Supprimer le message original
         await message.delete().catch(() => {});
       } catch(e) { console.error('Offer embed error:', e); }
       return;
     }
 
-    // ── Commandes prefix (+) ──────────────────────────────────
     if (!message.content.startsWith('+')) return;
 
     const args    = message.content.slice(1).trim().split(/ +/);
@@ -83,7 +228,7 @@ module.exports = {
     const member  = message.guild?.members.cache.get(message.author.id);
     if (!member) return;
 
-    // ── +profile ──────────────────────────────────────────────
+    // +profile
     if (command === 'profile') {
       if (message.channel.id !== PROFILE_CHANNEL_ID) {
         return message.reply({ content: `❌ هذا الأمر متاح فقط في <#${PROFILE_CHANNEL_ID}>` })
@@ -94,11 +239,11 @@ module.exports = {
           .then(m => setTimeout(() => m.delete().catch(() => {}), 5000));
       }
       const target = message.mentions.members.first() || member;
-      await sendProfileEmbed(message, target);
+      await sendProfileCard(message, target);
       return;
     }
 
-    // ── +panel ────────────────────────────────────────────────
+    // +panel
     if (command === 'panel') {
       if (!isStaff(member)) return;
       const icEvent  = require('./interactionCreate');
@@ -139,7 +284,7 @@ module.exports = {
       return;
     }
 
-    // ── +points @user <nb> ────────────────────────────────────
+    // +points @user <nb>
     if (command === 'points') {
       if (!member.permissions.has(PermissionFlagsBits.Administrator)) return;
       const target = message.mentions.users.first();
@@ -150,7 +295,7 @@ module.exports = {
       return;
     }
 
-    // ── +tadd @user ───────────────────────────────────────────
+    // +tadd @user
     if (command === 'tadd') {
       if (!isStaff(member)) return;
       const target = message.mentions.members.first();
@@ -162,7 +307,7 @@ module.exports = {
       return;
     }
 
-    // ── +tremove @user ────────────────────────────────────────
+    // +tremove @user
     if (command === 'tremove') {
       if (!isStaff(member)) return;
       const target = message.mentions.members.first();
@@ -172,7 +317,7 @@ module.exports = {
       return;
     }
 
-    // ── +rename <nom> ─────────────────────────────────────────
+    // +rename <nom>
     if (command === 'rename') {
       if (!isStaff(member)) return;
       const newName = args.join('-').toLowerCase().replace(/[^a-z0-9-]/g, '');
@@ -182,7 +327,7 @@ module.exports = {
       return;
     }
 
-    // ── +close ────────────────────────────────────────────────
+    // +close
     if (command === 'close') {
       if (!isStaff(member)) return;
       await message.reply('🔒 جاري إغلاق التذكرة خلال 3 ثواني...');
@@ -190,7 +335,7 @@ module.exports = {
       return;
     }
 
-    // ── +delete (admin only) ──────────────────────────────────
+    // +delete
     if (command === 'delete') {
       if (!member.permissions.has(PermissionFlagsBits.Administrator)) return;
       await message.reply('🗑️ جاري حذف التذكرة...');
