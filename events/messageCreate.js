@@ -34,48 +34,68 @@ async function sendProfileCard(message, target) {
   const userData = db.getUser(target.user.id);
   const rank     = db.getRank(target.user.id);
 
-  const W = 700, H = 280;
+  const W = 900, H = 350;
   const canvas = createCanvas(W, H);
   const ctx    = canvas.getContext('2d');
 
-  // Fond noir
-  ctx.fillStyle = '#0d0d0d';
+  // ── Fond noir ──
+  ctx.fillStyle = '#0a0a0a';
   ctx.fillRect(0, 0, W, H);
 
-  // Bordure rouge
+  // ── Bordure rouge extérieure ──
   ctx.strokeStyle = '#cc0000';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 4;
   ctx.strokeRect(2, 2, W - 4, H - 4);
 
-  // Ligne rouge en haut
-  const grad = ctx.createLinearGradient(0, 0, W, 0);
-  grad.addColorStop(0, 'transparent');
-  grad.addColorStop(0.3, '#cc0000');
-  grad.addColorStop(0.7, '#cc0000');
-  grad.addColorStop(1, 'transparent');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, 3);
+  // ── Ligne rouge haut dégradée ──
+  const topGrad = ctx.createLinearGradient(0, 0, W, 0);
+  topGrad.addColorStop(0, 'transparent');
+  topGrad.addColorStop(0.2, '#cc0000');
+  topGrad.addColorStop(0.8, '#cc0000');
+  topGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = topGrad;
+  ctx.fillRect(0, 0, W, 4);
 
-  // Avatar
-  const avatarSize = 110;
-  const avatarX    = 40;
+  // ── Ligne rouge bas dégradée ──
+  ctx.fillStyle = topGrad;
+  ctx.fillRect(0, H - 4, W, 4);
+
+  // ── Séparateur vertical ──
+  const sepX = 280;
+  const sepGrad = ctx.createLinearGradient(0, 0, 0, H);
+  sepGrad.addColorStop(0, 'transparent');
+  sepGrad.addColorStop(0.3, '#cc0000');
+  sepGrad.addColorStop(0.7, '#cc0000');
+  sepGrad.addColorStop(1, 'transparent');
+  ctx.strokeStyle = sepGrad;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(sepX, 30);
+  ctx.lineTo(sepX, H - 30);
+  ctx.stroke();
+
+  // ── Avatar ──
+  const avatarSize = 160;
+  const avatarX    = 60;
   const avatarY    = H / 2 - avatarSize / 2;
 
   try {
     const avatarURL = target.user.displayAvatarURL({ extension: 'png', size: 256 });
     const avatar    = await loadImage(avatarURL);
 
+    // Halo rouge
     ctx.save();
+    ctx.shadowColor = '#cc0000';
+    ctx.shadowBlur  = 20;
     ctx.beginPath();
-    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#cc0000';
-    ctx.fill();
+    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 5, 0, Math.PI * 2);
+    ctx.strokeStyle = '#cc0000';
+    ctx.lineWidth   = 3;
+    ctx.stroke();
+    ctx.restore();
 
-    ctx.beginPath();
-    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2 + 2, 0, Math.PI * 2);
-    ctx.fillStyle = '#0d0d0d';
-    ctx.fill();
-
+    // Avatar clippé
+    ctx.save();
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
     ctx.closePath();
@@ -84,111 +104,130 @@ async function sendProfileCard(message, target) {
     ctx.restore();
   } catch {}
 
-  // Rank badge
-  ctx.fillStyle = '#1a0000';
-  ctx.strokeStyle = '#cc0000';
-  ctx.lineWidth = 1.5;
-  roundRect(ctx, avatarX, avatarY + avatarSize + 8, avatarSize, 24, 5);
-  ctx.fill();
-  ctx.stroke();
-
+  // ── Rank badge sous avatar ──
+  const badgeY = avatarY + avatarSize + 12;
   ctx.fillStyle = '#cc0000';
-  ctx.font = 'bold 13px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(`# ${rank}`, avatarX + avatarSize / 2, avatarY + avatarSize + 24);
+  roundRect(ctx, avatarX, badgeY, avatarSize, 28, 6);
+  ctx.fill();
 
-  // Nom
-  const textX = avatarX + avatarSize + 30;
-  ctx.textAlign = 'left';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 26px sans-serif';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`🏆 # ${rank}`, avatarX + avatarSize / 2, badgeY + 19);
+
+  // ── Zone droite ──
+  const rightX = sepX + 30;
+
+  // Nom en grand
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 36px sans-serif';
   const displayName = target.displayName ?? target.user.username;
-  ctx.fillText(displayName.length > 18 ? displayName.slice(0, 18) + '…' : displayName, textX, 55);
+  ctx.fillText(
+    displayName.length > 20 ? displayName.slice(0, 20) + '…' : displayName,
+    W - 30, 65
+  );
 
+  // Ligne rouge sous le nom
+  const nameLineGrad = ctx.createLinearGradient(rightX, 0, W - 30, 0);
+  nameLineGrad.addColorStop(0, 'transparent');
+  nameLineGrad.addColorStop(1, '#cc0000');
+  ctx.fillStyle = nameLineGrad;
+  ctx.fillRect(rightX, 75, W - rightX - 30, 2);
+
+  // Points en gros à droite
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#cc0000';
+  ctx.font = 'bold 64px sans-serif';
+  ctx.fillText(`${userData.points}`, W - 30, 155);
+
+  ctx.fillStyle = '#555555';
+  ctx.font = '16px sans-serif';
+  ctx.fillText('إجمالي النقاط', W - 30, 175);
+
+  // Msgs today
+  ctx.textAlign = 'right';
   ctx.fillStyle = '#888888';
-  ctx.font = '14px sans-serif';
-  ctx.fillText(`@${target.user.username}`, textX, 78);
+  ctx.font = '15px sans-serif';
+  ctx.fillText(`رسائل اليوم: ${userData.msgsToday}`, W - 30, 100);
 
-  // XP Bar
-  const barX = textX, barY = 95, barW = W - textX - 40, barH = 14;
+  // ── XP Bar ──
+  const barX = rightX, barY = 195, barW = W - rightX - 30, barH = 16;
 
   ctx.fillStyle = '#1a1a1a';
-  roundRect(ctx, barX, barY, barW, barH, 7);
+  roundRect(ctx, barX, barY, barW, barH, 8);
   ctx.fill();
 
   const xpRatio = Math.min(userData.xp / userData.xpMax, 1);
   if (xpRatio > 0) {
     const xpGrad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
     xpGrad.addColorStop(0, '#880000');
-    xpGrad.addColorStop(1, '#ff2222');
+    xpGrad.addColorStop(1, '#ff3333');
     ctx.fillStyle = xpGrad;
-    roundRect(ctx, barX, barY, barW * xpRatio, barH, 7);
+    roundRect(ctx, barX, barY, barW * xpRatio, barH, 8);
     ctx.fill();
   }
 
   ctx.strokeStyle = '#cc0000';
   ctx.lineWidth = 1;
-  roundRect(ctx, barX, barY, barW, barH, 7);
+  roundRect(ctx, barX, barY, barW, barH, 8);
   ctx.stroke();
 
-  ctx.fillStyle = '#aaaaaa';
-  ctx.font = '12px sans-serif';
-  ctx.fillText(`${userData.xp} / ${userData.xpMax} XP`, barX, barY - 5);
+  ctx.fillStyle = '#888888';
+  ctx.font = '13px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`${userData.xp} / ${userData.xpMax} XP`, barX, barY - 6);
 
-  // Stats
+  // ── Stats boxes ──
   const stats = [
     { label: 'تكت',     key: 'tickets' },
-    { label: 'بان',     key: 'bans'    },
-    { label: 'ميوت',    key: 'mutes'   },
-    { label: 'كيك',     key: 'kicks'   },
+    { label: 'بون',     key: 'bans'    },
+    { label: 'رسائل',   key: 'warns'   },
+    { label: 'إدارة',   key: 'kicks'   },
     { label: 'مسؤولية', key: 'autres'  },
-    { label: 'تحذير',   key: 'warns'   },
+    { label: 'إضافية',  key: 'mutes'   },
   ];
 
-  const statBoxW = 72, statBoxH = 52;
-  const statY    = 125;
-  const gap      = 10;
+  const totalW   = W - rightX - 30;
+  const boxGap   = 8;
+  const boxW     = (totalW - boxGap * 5) / 6;
+  const boxH     = 65;
+  const boxStartY = 230;
 
   stats.forEach((s, i) => {
-    const bx = textX + i * (statBoxW + gap);
-    const by = statY;
+    const bx = rightX + i * (boxW + boxGap);
+    const by = boxStartY;
+    const val = userData.stats[s.key] ?? 0;
 
-    ctx.fillStyle = '#111111';
-    ctx.strokeStyle = '#2a2a2a';
+    // Fond box — rouge si val > 0
+    ctx.fillStyle = val > 0 ? '#1a0000' : '#111111';
+    ctx.strokeStyle = val > 0 ? '#cc0000' : '#2a2a2a';
     ctx.lineWidth = 1;
-    roundRect(ctx, bx, by, statBoxW, statBoxH, 6);
+    roundRect(ctx, bx, by, boxW, boxH, 6);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 22px sans-serif';
+    // Valeur
+    ctx.fillStyle = val > 0 ? '#ff3333' : '#ffffff';
+    ctx.font = `bold 26px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(userData.stats[s.key] ?? 0, bx + statBoxW / 2, by + 30);
+    ctx.fillText(val, bx + boxW / 2, by + 36);
 
-    ctx.fillStyle = '#666666';
+    // Label
+    ctx.fillStyle = '#555555';
     ctx.font = '11px sans-serif';
-    ctx.fillText(s.label, bx + statBoxW / 2, by + 46);
+    ctx.fillText(s.label, bx + boxW / 2, by + 55);
   });
 
-  // Points
-  ctx.textAlign = 'left';
+  // ── Watermark ──
   ctx.fillStyle = '#cc0000';
-  ctx.font = 'bold 15px sans-serif';
-  ctx.fillText(`نقاط: ${userData.points}`, textX, 205);
-
-  ctx.fillStyle = '#555555';
-  ctx.font = '13px sans-serif';
-  ctx.fillText(`رسائل اليوم: ${userData.msgsToday}`, textX + 130, 205);
-
-  // Watermark
-  ctx.fillStyle = '#cc0000';
-  ctx.font = 'bold 13px sans-serif';
+  ctx.font = 'bold 14px sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('Taxer Shop', W - 20, 25);
+  ctx.fillText('Taxer Shop', W - 20, 28);
 
-  ctx.fillStyle = '#333333';
+  ctx.fillStyle = '#2a2a2a';
   ctx.font = '11px sans-serif';
-  ctx.fillText(`ID: ${target.user.id}`, W - 20, H - 12);
+  ctx.fillText(`ID: ${target.user.id}`, W - 20, H - 10);
 
   const buffer     = canvas.toBuffer('image/png');
   const attachment = new AttachmentBuilder(buffer, { name: 'profile.png' });
@@ -201,7 +240,6 @@ module.exports = {
   async execute(message, client) {
     if (message.author.bot) return;
 
-    // Embed automatique dans la catégorie offers
     if (message.channel.parentId === OFFERS_CATEGORY_ID) {
       try {
         const offerEmbed = new EmbedBuilder()
@@ -214,7 +252,6 @@ module.exports = {
           )
           .setFooter({ text: 'Taxer Shop', iconURL: message.guild.iconURL() })
           .setTimestamp();
-
         await message.channel.send({ embeds: [offerEmbed] });
         await message.delete().catch(() => {});
       } catch(e) { console.error('Offer embed error:', e); }
@@ -228,7 +265,6 @@ module.exports = {
     const member  = message.guild?.members.cache.get(message.author.id);
     if (!member) return;
 
-    // +profile
     if (command === 'profile') {
       if (message.channel.id !== PROFILE_CHANNEL_ID) {
         return message.reply({ content: `❌ هذا الأمر متاح فقط في <#${PROFILE_CHANNEL_ID}>` })
@@ -243,7 +279,6 @@ module.exports = {
       return;
     }
 
-    // +panel
     if (command === 'panel') {
       if (!isStaff(member)) return;
       const icEvent  = require('./interactionCreate');
@@ -284,7 +319,6 @@ module.exports = {
       return;
     }
 
-    // +points @user <nb>
     if (command === 'points') {
       if (!member.permissions.has(PermissionFlagsBits.Administrator)) return;
       const target = message.mentions.users.first();
@@ -295,7 +329,6 @@ module.exports = {
       return;
     }
 
-    // +tadd @user
     if (command === 'tadd') {
       if (!isStaff(member)) return;
       const target = message.mentions.members.first();
@@ -307,7 +340,6 @@ module.exports = {
       return;
     }
 
-    // +tremove @user
     if (command === 'tremove') {
       if (!isStaff(member)) return;
       const target = message.mentions.members.first();
@@ -317,7 +349,6 @@ module.exports = {
       return;
     }
 
-    // +rename <nom>
     if (command === 'rename') {
       if (!isStaff(member)) return;
       const newName = args.join('-').toLowerCase().replace(/[^a-z0-9-]/g, '');
@@ -327,7 +358,6 @@ module.exports = {
       return;
     }
 
-    // +close
     if (command === 'close') {
       if (!isStaff(member)) return;
       await message.reply('🔒 جاري إغلاق التذكرة خلال 3 ثواني...');
@@ -335,7 +365,6 @@ module.exports = {
       return;
     }
 
-    // +delete
     if (command === 'delete') {
       if (!member.permissions.has(PermissionFlagsBits.Administrator)) return;
       await message.reply('🗑️ جاري حذف التذكرة...');
