@@ -6,14 +6,61 @@ const db          = require('../utils/db.js');
 const PROFILE_CHANNEL_ID = '1416486448361902261';
 const OFFERS_CATEGORY_ID = '1385261194616508470';
 const ADMIN_ROLE_IDS     = config.tickets.adminRoleIds || [];
-const STAFF_ROLE_ID      = config.tickets.staffRoleId;
+const STAFF_ROLE_ID      = '1385261123862794261';
 
 const BANNER_URL = 'https://media.discordapp.net/attachments/1385261281015238698/1495769057763397712/Taxer_shop_logo.png?ex=69e772fd&is=69e6217d&hm=5ce12815b1b94c5739b6f440379312234a7c8bf859d417649bbc4ee3c3f37558&=&format=webp&quality=lossless&width=958&height=958';
+
+// ── Grades (du plus bas au plus haut) ──
+const GRADES = [
+  { points: 0,   roleId: '1385261123862794261', label: 'TX| STAFF'      },
+  { points: 20,  roleId: '1496295371025022996', label: 'TX| • NEWBIE'   },
+  { points: 50,  roleId: '1496296648018497547', label: 'TX| • Warrior'  },
+  { points: 100, roleId: '1496295838459367455', label: 'TX| • Hight'    },
+];
 
 function isStaff(member) {
   return member.permissions.has(PermissionFlagsBits.Administrator)
       || ADMIN_ROLE_IDS.some(id => member.roles.cache.has(id))
       || member.roles.cache.has(STAFF_ROLE_ID);
+}
+
+// ── Upgrade automatique du grade ──
+async function checkUpgrade(guild, userId) {
+  try {
+    const member   = await guild.members.fetch(userId).catch(() => null);
+    if (!member) return;
+    const userData = db.getUser(userId);
+    const pts      = userData.points;
+
+    let targetGrade = null;
+    for (const g of GRADES) {
+      if (pts >= g.points && g.roleId) targetGrade = g;
+    }
+    if (!targetGrade) return;
+    if (member.roles.cache.has(targetGrade.roleId)) return;
+
+    // Retirer les anciens grades
+    for (const g of GRADES) {
+      if (g.roleId && member.roles.cache.has(g.roleId)) {
+        await member.roles.remove(g.roleId).catch(() => {});
+      }
+    }
+
+    // Donner le nouveau grade
+    await member.roles.add(targetGrade.roleId).catch(() => {});
+
+    // Notifier dans le salon profile
+    const ch = guild.channels.cache.get(PROFILE_CHANNEL_ID);
+    if (ch) {
+      ch.send({ embeds: [new EmbedBuilder()
+        .setColor('#cc0000')
+        .setTitle('🎉 ترقية جديدة!')
+        .setDescription(`تهانينا ${member} !\nلقد حصلت على رتبة **${targetGrade.label}** 🔥\nبفضل **${pts}** نقطة!`)
+        .setThumbnail(member.user.displayAvatarURL())
+        .setTimestamp()
+      ]});
+    }
+  } catch(e) { console.error('Upgrade error:', e); }
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -38,16 +85,13 @@ async function sendProfileCard(message, target) {
   const canvas = createCanvas(W, H);
   const ctx    = canvas.getContext('2d');
 
-  // ── Fond noir ──
   ctx.fillStyle = '#0a0a0a';
   ctx.fillRect(0, 0, W, H);
 
-  // ── Bordure rouge extérieure ──
   ctx.strokeStyle = '#cc0000';
   ctx.lineWidth = 4;
   ctx.strokeRect(2, 2, W - 4, H - 4);
 
-  // ── Ligne rouge haut dégradée ──
   const topGrad = ctx.createLinearGradient(0, 0, W, 0);
   topGrad.addColorStop(0, 'transparent');
   topGrad.addColorStop(0.2, '#cc0000');
@@ -55,12 +99,8 @@ async function sendProfileCard(message, target) {
   topGrad.addColorStop(1, 'transparent');
   ctx.fillStyle = topGrad;
   ctx.fillRect(0, 0, W, 4);
-
-  // ── Ligne rouge bas dégradée ──
-  ctx.fillStyle = topGrad;
   ctx.fillRect(0, H - 4, W, 4);
 
-  // ── Séparateur vertical ──
   const sepX = 280;
   const sepGrad = ctx.createLinearGradient(0, 0, 0, H);
   sepGrad.addColorStop(0, 'transparent');
@@ -74,7 +114,6 @@ async function sendProfileCard(message, target) {
   ctx.lineTo(sepX, H - 30);
   ctx.stroke();
 
-  // ── Avatar ──
   const avatarSize = 160;
   const avatarX    = 60;
   const avatarY    = H / 2 - avatarSize / 2;
@@ -83,7 +122,6 @@ async function sendProfileCard(message, target) {
     const avatarURL = target.user.displayAvatarURL({ extension: 'png', size: 256 });
     const avatar    = await loadImage(avatarURL);
 
-    // Halo rouge
     ctx.save();
     ctx.shadowColor = '#cc0000';
     ctx.shadowBlur  = 20;
@@ -94,7 +132,6 @@ async function sendProfileCard(message, target) {
     ctx.stroke();
     ctx.restore();
 
-    // Avatar clippé
     ctx.save();
     ctx.beginPath();
     ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
@@ -104,38 +141,29 @@ async function sendProfileCard(message, target) {
     ctx.restore();
   } catch {}
 
-  // ── Rank badge sous avatar ──
   const badgeY = avatarY + avatarSize + 12;
   ctx.fillStyle = '#cc0000';
   roundRect(ctx, avatarX, badgeY, avatarSize, 28, 6);
   ctx.fill();
-
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 15px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(`🏆 # ${rank}`, avatarX + avatarSize / 2, badgeY + 19);
 
-  // ── Zone droite ──
   const rightX = sepX + 30;
 
-  // Nom en grand
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 36px sans-serif';
   const displayName = target.displayName ?? target.user.username;
-  ctx.fillText(
-    displayName.length > 20 ? displayName.slice(0, 20) + '…' : displayName,
-    W - 30, 65
-  );
+  ctx.fillText(displayName.length > 20 ? displayName.slice(0, 20) + '…' : displayName, W - 30, 65);
 
-  // Ligne rouge sous le nom
   const nameLineGrad = ctx.createLinearGradient(rightX, 0, W - 30, 0);
   nameLineGrad.addColorStop(0, 'transparent');
   nameLineGrad.addColorStop(1, '#cc0000');
   ctx.fillStyle = nameLineGrad;
   ctx.fillRect(rightX, 75, W - rightX - 30, 2);
 
-  // Points en gros à droite
   ctx.textAlign = 'right';
   ctx.fillStyle = '#cc0000';
   ctx.font = 'bold 64px sans-serif';
@@ -145,13 +173,10 @@ async function sendProfileCard(message, target) {
   ctx.font = '16px sans-serif';
   ctx.fillText('إجمالي النقاط', W - 30, 175);
 
-  // Msgs today
-  ctx.textAlign = 'right';
   ctx.fillStyle = '#888888';
   ctx.font = '15px sans-serif';
   ctx.fillText(`رسائل اليوم: ${userData.msgsToday}`, W - 30, 100);
 
-  // ── XP Bar ──
   const barX = rightX, barY = 195, barW = W - rightX - 30, barH = 16;
 
   ctx.fillStyle = '#1a1a1a';
@@ -178,7 +203,6 @@ async function sendProfileCard(message, target) {
   ctx.textAlign = 'left';
   ctx.fillText(`${userData.xp} / ${userData.xpMax} XP`, barX, barY - 6);
 
-  // ── Stats boxes ──
   const stats = [
     { label: 'تكت',     key: 'tickets' },
     { label: 'بون',     key: 'bans'    },
@@ -188,38 +212,34 @@ async function sendProfileCard(message, target) {
     { label: 'إضافية',  key: 'mutes'   },
   ];
 
-  const totalW   = W - rightX - 30;
-  const boxGap   = 8;
-  const boxW     = (totalW - boxGap * 5) / 6;
-  const boxH     = 65;
+  const totalW    = W - rightX - 30;
+  const boxGap    = 8;
+  const boxW      = (totalW - boxGap * 5) / 6;
+  const boxH      = 65;
   const boxStartY = 230;
 
   stats.forEach((s, i) => {
-    const bx = rightX + i * (boxW + boxGap);
-    const by = boxStartY;
+    const bx  = rightX + i * (boxW + boxGap);
+    const by  = boxStartY;
     const val = userData.stats[s.key] ?? 0;
 
-    // Fond box — rouge si val > 0
-    ctx.fillStyle = val > 0 ? '#1a0000' : '#111111';
+    ctx.fillStyle   = val > 0 ? '#1a0000' : '#111111';
     ctx.strokeStyle = val > 0 ? '#cc0000' : '#2a2a2a';
-    ctx.lineWidth = 1;
+    ctx.lineWidth   = 1;
     roundRect(ctx, bx, by, boxW, boxH, 6);
     ctx.fill();
     ctx.stroke();
 
-    // Valeur
     ctx.fillStyle = val > 0 ? '#ff3333' : '#ffffff';
-    ctx.font = `bold 26px sans-serif`;
+    ctx.font = 'bold 26px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(val, bx + boxW / 2, by + 36);
 
-    // Label
     ctx.fillStyle = '#555555';
     ctx.font = '11px sans-serif';
     ctx.fillText(s.label, bx + boxW / 2, by + 55);
   });
 
-  // ── Watermark ──
   ctx.fillStyle = '#cc0000';
   ctx.font = 'bold 14px sans-serif';
   ctx.textAlign = 'right';
@@ -240,6 +260,7 @@ module.exports = {
   async execute(message, client) {
     if (message.author.bot) return;
 
+    // ── Embed automatique offers ──
     if (message.channel.parentId === OFFERS_CATEGORY_ID) {
       try {
         const offerEmbed = new EmbedBuilder()
@@ -258,13 +279,49 @@ module.exports = {
       return;
     }
 
+    // ── Système messages → points ──
+    const member = message.guild?.members.cache.get(message.author.id);
+    if (member && isStaff(member)) {
+      const data  = db.getUser(message.author.id);
+      const today = new Date().toDateString();
+
+      if (data.lastMsgDate !== today) {
+        data.msgsToday   = 0;
+        data.lastMsgDate = today;
+      }
+      data.msgsToday++;
+
+      if (data.msgsToday % 200 === 0) {
+        db.addPoints(message.author.id, 5, null);
+        message.channel.send({
+          embeds: [new EmbedBuilder()
+            .setColor('#cc0000')
+            .setDescription(`🎉 ${message.author} وصلت إلى **${data.msgsToday}** رسالة اليوم!\n🏆 **+5 نقاط** تمت إضافتها!`)
+          ]
+        }).then(m => setTimeout(() => m.delete().catch(() => {}), 8000));
+        await checkUpgrade(message.guild, message.author.id);
+      } else {
+        const fs   = require('fs');
+        const path = require('path');
+        const DATA_FILE = path.join(__dirname, '../data/points.json');
+        try {
+          const raw = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+          if (raw[message.author.id]) {
+            raw[message.author.id].msgsToday   = data.msgsToday;
+            raw[message.author.id].lastMsgDate = today;
+            fs.writeFileSync(DATA_FILE, JSON.stringify(raw, null, 2));
+          }
+        } catch {}
+      }
+    }
+
     if (!message.content.startsWith('+')) return;
 
     const args    = message.content.slice(1).trim().split(/ +/);
     const command = args.shift().toLowerCase();
-    const member  = message.guild?.members.cache.get(message.author.id);
     if (!member) return;
 
+    // +profile
     if (command === 'profile') {
       if (message.channel.id !== PROFILE_CHANNEL_ID) {
         return message.reply({ content: `❌ هذا الأمر متاح فقط في <#${PROFILE_CHANNEL_ID}>` })
@@ -279,6 +336,7 @@ module.exports = {
       return;
     }
 
+    // +panel
     if (command === 'panel') {
       if (!isStaff(member)) return;
       const icEvent  = require('./interactionCreate');
@@ -299,10 +357,7 @@ module.exports = {
           { name: '✅ مستلم بواسطة', value: claimerVal, inline: true },
           { name: '🕐 وقت الفتح',    value: timeVal,    inline: true },
         )
-        .setDescription(
-          '**⚡ أوامر سريعة:**\n' +
-          '`+tadd @عضو` • `+tremove @عضو` • `+rename اسم` • `+close` • `+delete`'
-        );
+        .setDescription('**⚡ أوامر سريعة:**\n`+tadd @عضو` • `+tremove @عضو` • `+rename اسم` • `+close` • `+delete`');
 
       const menu = new StringSelectMenuBuilder()
         .setCustomId('ticket_manage')
@@ -319,16 +374,19 @@ module.exports = {
       return;
     }
 
+    // +points @user <nb>
     if (command === 'points') {
       if (!member.permissions.has(PermissionFlagsBits.Administrator)) return;
       const target = message.mentions.users.first();
       const amount = parseInt(args[1]);
       if (!target || isNaN(amount)) return message.reply('الاستخدام: `+points @user 5`');
       db.addPoints(target.id, amount, 'autres');
+      await checkUpgrade(message.guild, target.id);
       message.reply(`✅ تم إضافة **${amount}** نقطة لـ ${target}`);
       return;
     }
 
+    // +tadd
     if (command === 'tadd') {
       if (!isStaff(member)) return;
       const target = message.mentions.members.first();
@@ -340,6 +398,7 @@ module.exports = {
       return;
     }
 
+    // +tremove
     if (command === 'tremove') {
       if (!isStaff(member)) return;
       const target = message.mentions.members.first();
@@ -349,6 +408,7 @@ module.exports = {
       return;
     }
 
+    // +rename
     if (command === 'rename') {
       if (!isStaff(member)) return;
       const newName = args.join('-').toLowerCase().replace(/[^a-z0-9-]/g, '');
@@ -358,6 +418,7 @@ module.exports = {
       return;
     }
 
+    // +close
     if (command === 'close') {
       if (!isStaff(member)) return;
       await message.reply('🔒 جاري إغلاق التذكرة خلال 3 ثواني...');
@@ -365,6 +426,7 @@ module.exports = {
       return;
     }
 
+    // +delete
     if (command === 'delete') {
       if (!member.permissions.has(PermissionFlagsBits.Administrator)) return;
       await message.reply('🗑️ جاري حذف التذكرة...');
