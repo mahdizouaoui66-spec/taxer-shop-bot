@@ -16,7 +16,7 @@ const NOTIF_ROLE_ID     = config.tickets.notifRoleId;
 const ADMIN_ROLE_IDS    = config.tickets.adminRoleIds || [];
 const LOG_CHANNEL_ID    = config.tickets.logChannelId;
 const CATEGORY_ID       = config.tickets.categoryId;
-const RATING_CHANNEL_ID = '1499145488036003920';
+const RATING_CHANNEL_ID = '1385261245107671112';
 
 // ── نظام الولاء ──────────────────────────────────────────
 const OWNER_ID        = '1113897921922994337';
