@@ -18,6 +18,13 @@ const LOG_CHANNEL_ID    = config.tickets.logChannelId;
 const CATEGORY_ID       = config.tickets.categoryId;
 const RATING_CHANNEL_ID = '1499145488036003920';
 
+// ── نظام الولاء ──────────────────────────────────────────
+const OWNER_ID        = '1113897921922994337';
+const ROLE_CLIENT_ID  = '1385261129613312101';
+const ROLE_VIP_ID     = '1385261128439042098';
+const POINTS_COMMANDE = 10;
+const POINTS_VIP      = 60;
+
 const claimedBy  = new Map();
 const ticketInfo = new Map();
 
@@ -92,6 +99,39 @@ async function unlockForStaff(channel) {
       SendMessages: true,
     }).catch(() => {});
   }
+}
+
+// ── إعطاء نقاط الولاء + رتبة ──────────────────────────────
+async function grantFidelityPoints(guild, clientId) {
+  try {
+    const member = await guild.members.fetch(clientId).catch(() => null);
+    if (!member) return;
+
+    // إضافة النقاط في قاعدة البيانات
+    db.addClientPoints(clientId, POINTS_COMMANDE);
+    const total = db.getClientPoints(clientId);
+
+    // إعطاء رتبة عميل إذا ما عندوش
+    if (!member.roles.cache.has(ROLE_CLIENT_ID)) {
+      await member.roles.add(ROLE_CLIENT_ID).catch(() => {});
+    }
+
+    // إعطاء رتبة VIP إذا وصل للحد
+    if (total >= POINTS_VIP && !member.roles.cache.has(ROLE_VIP_ID)) {
+      await member.roles.add(ROLE_VIP_ID).catch(() => {});
+      // إبلاغ العميل
+      await member.send({
+        embeds: [new EmbedBuilder()
+          .setTitle('👑 مبروك! أصبحت VIP')
+          .setDescription(`لقد وصلت إلى **${total} نقطة** 🎉
+تم منحك رتبة **VIP** في Taxer Shop!
+شكراً لثقتك بنا 💜`)
+          .setColor('#FFD700')
+          .setTimestamp()
+        ]
+      }).catch(() => {});
+    }
+  } catch(e) { console.error('Fidelity error:', e); }
 }
 
 async function openTicket(interaction, cat) {
@@ -347,6 +387,42 @@ module.exports = {
           } catch(e) { console.error('Rating DM error:', e); }
         }
 
+        // ── DM للأونر لتأكيد نقاط الولاء (فقط للطلبات) ──
+        if (info?.cat?.id === 'commande' && info?.openerId) {
+          try {
+            const owner = await interaction.client.users.fetch(OWNER_ID);
+            await owner.send({
+              embeds: [new EmbedBuilder()
+                .setTitle('🛒 تأكيد طلب جديد')
+                .setDescription(
+                  `تذكرة رقم **#${info.ticketNum}** تم إغلاقها
+
+` +
+                  `👤 **العميل:** ${info.openerTag}
+` +
+                  `👨‍💼 **الستاف:** ${claimer ? claimer.tag : 'غير محدد'}
+
+` +
+                  `هل تريد إعطاء العميل **${POINTS_COMMANDE} نقطة** ولاء؟`
+                )
+                .setColor('#5b4fcf')
+                .setFooter({ text: 'Taxer Shop • نظام الولاء' })
+                .setTimestamp()
+              ],
+              components: [new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setCustomId(`fidelity_yes_${info.openerId}_${info.ticketNum}`)
+                  .setLabel('✅ تأكيد النقاط')
+                  .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                  .setCustomId(`fidelity_no_${info.openerId}_${info.ticketNum}`)
+                  .setLabel('❌ رفض')
+                  .setStyle(ButtonStyle.Danger),
+              )]
+            }).catch(() => {});
+          } catch(e) { console.error('Owner DM error:', e); }
+        }
+
         setTimeout(() => interaction.channel.delete().catch(() => {}), 3000);
         return;
       }
@@ -392,6 +468,66 @@ module.exports = {
           ],
           components: []
         });
+        return;
+      }
+
+      // ── تأكيد/رفض نقاط الولاء (DM الأونر) ─────────────────
+      if (interaction.isButton() && interaction.customId.startsWith('fidelity_')) {
+        if (interaction.user.id !== OWNER_ID) return interaction.reply({ content: '❌ هذا الأمر للأونر فقط!', flags: 64 });
+
+        const parts      = interaction.customId.split('_');
+        const action     = parts[1]; // yes / no
+        const clientId   = parts[2];
+        const ticketNum  = parts[3];
+
+        if (action === 'yes') {
+          // البحث عن السيرفر
+          const guild = interaction.client.guilds.cache.first();
+          await grantFidelityPoints(guild, clientId);
+          const total = db.getClientPoints(clientId);
+
+          // إبلاغ العميل
+          try {
+            const clientUser = await interaction.client.users.fetch(clientId);
+            await clientUser.send({
+              embeds: [new EmbedBuilder()
+                .setTitle('🎁 تم إضافة نقاط الولاء!')
+                .setDescription(
+                  `شكراً على طلبك من **Taxer Shop** 💜
+
+` +
+                  `تم إضافة **+${POINTS_COMMANDE} نقطة** لحسابك!
+` +
+                  `مجموع نقاطك الآن: **${total} نقطة**
+
+` +
+                  `${total >= POINTS_VIP ? '👑 أنت الآن VIP!' : `باقي **${POINTS_VIP - total} نقطة** للوصول إلى VIP`}`
+                )
+                .setColor('#57F287')
+                .setTimestamp()
+              ]
+            }).catch(() => {});
+          } catch {}
+
+          await interaction.update({
+            embeds: [new EmbedBuilder()
+              .setTitle('✅ تم تأكيد النقاط')
+              .setDescription(`تم إضافة **${POINTS_COMMANDE} نقطة** للعميل <@${clientId}>
+المجموع: **${total} نقطة**`)
+              .setColor('#57F287')
+            ],
+            components: []
+          });
+        } else {
+          await interaction.update({
+            embeds: [new EmbedBuilder()
+              .setTitle('❌ تم الرفض')
+              .setDescription(`لم يتم إضافة نقاط لتذكرة **#${ticketNum}**`)
+              .setColor('#ED4245')
+            ],
+            components: []
+          });
+        }
         return;
       }
 
