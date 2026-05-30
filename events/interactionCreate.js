@@ -519,24 +519,49 @@ module.exports = {
         return;
       }
 
-      // ── تقييم الأعلى في صالون الآراء ────────────────────────
+      // ── تقييم الآراء ────────────────────────────────────────
       if (interaction.isButton() && interaction.customId.startsWith('review_')) {
         const parts     = interaction.customId.split('_');
         const stars     = parseInt(parts[1]);
         const messageId = parts[2];
         const starsText = '⭐'.repeat(stars);
+        const emptyText = '☆'.repeat(5 - stars);
 
-        // إضافة ريأكشن على رسالة العميل
+        const color = stars === 5 ? '#FFD700'
+                    : stars === 4 ? '#57F287'
+                    : stars === 3 ? '#FEE75C'
+                    : stars === 2 ? '#FF9500'
+                    :               '#ED4245';
+
+        // Récupérer le message original du client
+        let originalText = '';
         try {
-          const msg = await interaction.channel.messages.fetch(messageId);
-          await msg.reactions.removeAll().catch(() => {});
-          for (let i = 0; i < stars; i++) {
-            await msg.react('⭐').catch(() => {});
-          }
+          const originalMsg = await interaction.channel.messages.fetch(messageId);
+          originalText = originalMsg.content || '';
+          await originalMsg.delete().catch(() => {});
         } catch {}
 
+        // Envoyer le beau message stylé
+        await interaction.channel.send({
+          embeds: [new EmbedBuilder()
+            .setAuthor({
+              name: interaction.user.username,
+              iconURL: interaction.user.displayAvatarURL({ size: 128 })
+            })
+            .setDescription(
+              `> ${originalText}
+
+` +
+              `${starsText}${emptyText} **${stars}/5**`
+            )
+            .setColor(color)
+            .setFooter({ text: 'Taxer Shop • تقييم موثوق 💜' })
+            .setTimestamp()
+          ]
+        });
+
         await interaction.update({
-          content: `✅ شكراً! تم إضافة **${starsText}** على رأيك 💜`,
+          content: `✅ تم نشر تقييمك **${starsText}** شكراً! 💜`,
           components: []
         });
         return;
