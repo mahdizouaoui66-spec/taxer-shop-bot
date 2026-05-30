@@ -365,27 +365,7 @@ module.exports = {
           }
         } catch(e) { console.error('Transcript error:', e); }
 
-        // DM تقييم
-        if (info?.openerId) {
-          try {
-            const opener = await interaction.guild.members.fetch(info.openerId).catch(() => null);
-            if (opener) {
-              await opener.send({
-                embeds: [new EmbedBuilder()
-                  .setTitle('⭐ قيّم تجربتك معنا')
-                  .setDescription(
-                    `شكراً لتواصلك مع **Taxer Shop** 💜\n\n` +
-                    `تذكرة رقم **#${info.ticketNum}** — ${info.cat.emoji} ${info.cat.label}\n\n` +
-                    `كيف تقيّم الدعم الذي تلقيته؟`
-                  )
-                  .setColor('#7c6bff')
-                  .setFooter({ text: 'تقييمك يساعدنا على تحسين الخدمة 🙏' })
-                ],
-                components: [ratingButtons(info.ticketNum, claimer?.userId)]
-              }).catch(() => {});
-            }
-          } catch(e) { console.error('Rating DM error:', e); }
-        }
+        // DM تقييم: تم إزالته - النظام الجديد في صالون الآراء
 
         // ── DM للأونر لتأكيد نقاط الولاء (فقط للطلبات) ──
         if (info?.cat?.id === 'commande' && info?.openerId) {
@@ -449,14 +429,22 @@ module.exports = {
         const ratingCh = interaction.client.channels.cache.get(RATING_CHANNEL_ID);
         if (ratingCh) {
           ratingCh.send({ embeds: [new EmbedBuilder()
-            .setTitle('⭐ تقييم جديد')
+            .setAuthor({
+              name: interaction.user.username,
+              iconURL: interaction.user.displayAvatarURL({ size: 64 })
+            })
+            .setTitle(`Taxer Shop — Feedbacks`)
+            .setThumbnail(interaction.user.displayAvatarURL({ size: 128 }))
+            .setDescription(
+              `💜 Thanks For Giving Us Feedback 💜\n` +
+              `💜 Hope You Visit Us Again 💜\n\n` +
+              `**【 Feedback par 】**\n${interaction.user}\n\n` +
+              `**التقييم:** ${starsText}\n` +
+              `**الستاف:** ${staffDisplay}`
+            )
             .setColor(stars >= 4 ? '#57F287' : stars >= 3 ? '#FEE75C' : '#ED4245')
-            .addFields(
-              { name: 'العميل',      value: interaction.user.tag, inline: true },
-              { name: 'الستاف',      value: staffDisplay,         inline: true },
-              { name: 'رقم التذكرة', value: `#${ticketNum}`,      inline: true },
-              { name: 'التقييم',     value: starsText,            inline: false },
-            ).setTimestamp()
+            .setFooter({ text: `${interaction.user.username} • Taxer Shop` })
+            .setTimestamp()
           ]});
         }
 
@@ -528,6 +516,29 @@ module.exports = {
             components: []
           });
         }
+        return;
+      }
+
+      // ── تقييم الأعلى في صالون الآراء ────────────────────────
+      if (interaction.isButton() && interaction.customId.startsWith('review_')) {
+        const parts     = interaction.customId.split('_');
+        const stars     = parseInt(parts[1]);
+        const messageId = parts[2];
+        const starsText = '⭐'.repeat(stars);
+
+        // إضافة ريأكشن على رسالة العميل
+        try {
+          const msg = await interaction.channel.messages.fetch(messageId);
+          await msg.reactions.removeAll().catch(() => {});
+          for (let i = 0; i < stars; i++) {
+            await msg.react('⭐').catch(() => {});
+          }
+        } catch {}
+
+        await interaction.update({
+          content: `✅ شكراً! تم إضافة **${starsText}** على رأيك 💜`,
+          components: []
+        });
         return;
       }
 

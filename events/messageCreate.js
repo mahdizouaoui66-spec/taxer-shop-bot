@@ -1,7 +1,10 @@
-const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, PermissionFlagsBits } = require('discord.js');
+const { AttachmentBuilder, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, PermissionFlagsBits, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const config      = require('../config.json');
 const db          = require('../utils/db.js');
+
+const REVIEW_CHANNEL_ID = '1385261245107671112';
+const ROLE_CLIENT_ID    = '1385261129613312101';
 
 const PROFILE_CHANNEL_ID = '1416486448361902261';
 const OFFERS_CATEGORY_ID = '1385261194616508470';
@@ -259,6 +262,24 @@ module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
     if (message.author.bot) return;
+
+    // ── نظام الأعلى في صالون الآراء ──
+    if (message.channel.id === REVIEW_CHANNEL_ID) {
+      const member = message.guild?.members.cache.get(message.author.id);
+      if (!member || !member.roles.cache.has(ROLE_CLIENT_ID)) {
+        await message.delete().catch(() => {});
+        return;
+      }
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`review_1_${message.id}`).setLabel('⭐').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`review_2_${message.id}`).setLabel('⭐⭐').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`review_3_${message.id}`).setLabel('⭐⭐⭐').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`review_4_${message.id}`).setLabel('⭐⭐⭐⭐').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(`review_5_${message.id}`).setLabel('⭐⭐⭐⭐⭐').setStyle(ButtonStyle.Success),
+      );
+      await message.reply({ content: '🌟 قيّم تجربتك:', components: [row], ephemeral: true }).catch(() => {});
+      return;
+    }
 
     // ── Embed automatique offers ──
     if (message.channel.parentId === OFFERS_CATEGORY_ID) {
