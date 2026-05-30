@@ -84,4 +84,39 @@ function getAverageRating() {
   return { avg: Math.round(avg * 10) / 10, total: ratings.length };
 }
 
-module.exports = { getUser, addPoints, getRank, getLeaderboard, getNextTicketNumber, saveRating, getAverageRating };
+// ── نظام الولاء للعملاء ──────────────────────────────────
+const CLIENTS_FILE = path.join(__dirname, '../data/clients.json');
+
+function loadClients() {
+  ensureFile(CLIENTS_FILE, {});
+  try { return JSON.parse(fs.readFileSync(CLIENTS_FILE, 'utf-8')); } catch { return {}; }
+}
+function saveClients(data) { fs.writeFileSync(CLIENTS_FILE, JSON.stringify(data, null, 2)); }
+
+function addClientPoints(userId, amount) {
+  const data = loadClients();
+  if (!data[userId]) data[userId] = { points: 0, orders: 0 };
+  data[userId].points += amount;
+  data[userId].orders += 1;
+  saveClients(data);
+}
+
+function getClientPoints(userId) {
+  const data = loadClients();
+  return data[userId]?.points ?? 0;
+}
+
+function getClientData(userId) {
+  const data = loadClients();
+  return data[userId] ?? { points: 0, orders: 0 };
+}
+
+function getClientLeaderboard(n = 10) {
+  const data = loadClients();
+  return Object.entries(data)
+    .sort(([,a],[,b]) => b.points - a.points)
+    .slice(0, n)
+    .map(([id, d]) => ({ userId: id, ...d }));
+}
+
+module.exports = { getUser, addPoints, getRank, getLeaderboard, getNextTicketNumber, saveRating, getAverageRating, addClientPoints, getClientPoints, getClientData, getClientLeaderboard };
