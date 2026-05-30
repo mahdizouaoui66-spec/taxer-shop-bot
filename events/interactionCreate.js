@@ -57,13 +57,14 @@ function ticketButtons(claimed) {
   );
 }
 
-function ratingButtons(ticketNum) {
+function ratingButtons(ticketNum, staffId) {
+  const sid = staffId || 'none';
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`rate_1_${ticketNum}`).setLabel('⭐').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rate_2_${ticketNum}`).setLabel('⭐⭐').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rate_3_${ticketNum}`).setLabel('⭐⭐⭐').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rate_4_${ticketNum}`).setLabel('⭐⭐⭐⭐').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`rate_5_${ticketNum}`).setLabel('⭐⭐⭐⭐⭐').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`rate_1_${ticketNum}_${sid}`).setLabel('⭐').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rate_2_${ticketNum}_${sid}`).setLabel('⭐⭐').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rate_3_${ticketNum}_${sid}`).setLabel('⭐⭐⭐').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rate_4_${ticketNum}_${sid}`).setLabel('⭐⭐⭐⭐').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rate_5_${ticketNum}_${sid}`).setLabel('⭐⭐⭐⭐⭐').setStyle(ButtonStyle.Success),
   );
 }
 
@@ -340,7 +341,7 @@ module.exports = {
                   .setColor('#7c6bff')
                   .setFooter({ text: 'تقييمك يساعدنا على تحسين الخدمة 🙏' })
                 ],
-                components: [ratingButtons(info.ticketNum)]
+                components: [ratingButtons(info.ticketNum, claimer?.userId)]
               }).catch(() => {});
             }
           } catch(e) { console.error('Rating DM error:', e); }
@@ -355,9 +356,19 @@ module.exports = {
         const parts     = interaction.customId.split('_');
         const stars     = parseInt(parts[1]);
         const ticketNum = parts[2];
+        const staffId   = parts[3] && parts[3] !== 'none' ? parts[3] : null;
         const starsText = '⭐'.repeat(stars);
 
         db.saveRating(interaction.user.id, ticketNum, stars);
+
+        // Récupérer le tag du staff
+        let staffDisplay = 'غير محدد';
+        if (staffId) {
+          try {
+            const staffUser = await interaction.client.users.fetch(staffId);
+            staffDisplay = staffUser.tag;
+          } catch {}
+        }
 
         const ratingCh = interaction.client.channels.cache.get(RATING_CHANNEL_ID);
         if (ratingCh) {
@@ -365,9 +376,10 @@ module.exports = {
             .setTitle('⭐ تقييم جديد')
             .setColor(stars >= 4 ? '#57F287' : stars >= 3 ? '#FEE75C' : '#ED4245')
             .addFields(
-              { name: 'العضو',       value: interaction.user.tag, inline: true },
+              { name: 'العميل',      value: interaction.user.tag, inline: true },
+              { name: 'الستاف',      value: staffDisplay,         inline: true },
               { name: 'رقم التذكرة', value: `#${ticketNum}`,      inline: true },
-              { name: 'التقييم',     value: starsText,            inline: true },
+              { name: 'التقييم',     value: starsText,            inline: false },
             ).setTimestamp()
           ]});
         }
